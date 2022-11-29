@@ -1,0 +1,6 @@
+# Build output
+*.o
+build/
+
+# User configuration files
+*.vscode/

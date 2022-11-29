@@ -1,0 +1,6 @@
+[submodule "lib/rabbitizer"]
+	path = lib/rabbitizer
+	url = https://github.com/Decompollaborate/rabbitizer
+[submodule "lib/fmt"]
+	path = lib/fmt
+	url = https://github.com/fmtlib/fmt
