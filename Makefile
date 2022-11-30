@@ -3,8 +3,6 @@ TARGET := findcode
 
 DEBUG ?= 0
 
-PLATFORM := native
-
 ### Text variables ###
 
 # These use the fact that += always adds a space to create a variable that is just a space
@@ -45,7 +43,6 @@ RUN :=
 
 # Build tools
 CC      := clang
-AS      := clang
 CXX     := clang++
 LD      := clang++
 
@@ -61,9 +58,9 @@ CXX_SRCS     := $(foreach src_dir,$(SRC_DIRS),$(wildcard $(src_dir)/*.cpp)) $(fo
 
 # Root build folder
 ifeq ($(DEBUG),0)
-BUILD_ROOT     := build/$(PLATFORM)/release
+BUILD_ROOT     := build/release
 else
-BUILD_ROOT     := build/$(PLATFORM)/debug
+BUILD_ROOT     := build/debug
 endif
 
 # Linked libraries
@@ -173,10 +170,6 @@ clean:
 	@$(PRINT)$(YELLOW)Cleaning build$(ENDYELLOW)$(ENDLINE)
 	@$(RMDIR) $(BUILD_ROOT) $(RMDIR_OPTS)
 	@$(RM) -f $(APP)
-
-run: $(APP)
-	@$(PRINT)$(GREEN)Running $(APP)$(ENDGREEN)$(ENDLINE)
-	@$(RUN) ./$(APP) -d
 
 .PHONY: all clean load
 
