@@ -9,36 +9,7 @@
 #include "rabbitizer.hpp"
 #include "fmt/format.h"
 
-constexpr size_t instruction_size = 4;
-constexpr size_t min_region_instructions = 4;
-
-// Byteswap a 32-bit value
-#ifdef _MSC_VER
-inline uint32_t byteswap(uint32_t val) {
-    return _byteswap_ulong(val);
-}
-#else
-constexpr uint32_t byteswap(uint32_t val) {
-    return __builtin_bswap32(val);
-}
-#endif
-
-// Nearest multiple of `divisor` greater than or equal to `val`
-template <size_t divisor>
-constexpr size_t nearest_multiple_up(size_t val) {
-    return ((val + divisor - 1) / divisor) * divisor;
-}
-
-// Nearest multiple of `divisor` less than or equal to `val`
-template <size_t divisor>
-constexpr size_t nearest_multiple_down(size_t val) {
-    return (val / divisor) * divisor;
-}
-
-// Reads a 32-bit value from a given uint8_t span at the given offset
-uint32_t read32(std::span<uint8_t> bytes, size_t offset) {
-    return *reinterpret_cast<uint32_t*>(bytes.data() + offset);
-}
+#include "findcode.h"
 
 // Read a rom file from the given path and swap it (if necessary) to little-endian
 std::vector<uint8_t> read_rom(const char* path) {
@@ -97,9 +68,6 @@ std::vector<size_t> find_return_locations(std::span<uint8_t> rom_bytes) {
     return ret;
 }
 
-using RegisterId = rabbitizer::Registers::Cpu::GprO32;
-using InstrId = rabbitizer::InstrId::UniqueId;
-
 // Check if a given instruction id is a CPU store
 bool is_store(InstrId id) {
     return
@@ -130,6 +98,11 @@ bool invalid_cop0_register(int reg) {
     return reg == 7 || (reg >= 21 && reg <= 25) || reg == 31;
 }
 
+bool is_unused_n64_instruction(InstrId id) {
+    return
+        id == InstrId::cpu_ll;
+}
+
 // Check if a given instruction is valid via several metrics
 bool is_valid(const rabbitizer::InstructionCpu& instr) {
     InstrId id = instr.getUniqueId();
@@ -145,6 +118,11 @@ bool is_valid(const rabbitizer::InstructionCpu& instr) {
 
     // Check for mtc0 or mfc0 with invalid registers
     if ((id == InstrId::cpu_mtc0 || id == InstrId::cpu_mfc0) && invalid_cop0_register((int)instr.GetO32_rd())) {
+        return false;
+    }
+
+    // Check for instructions that wouldn't be in an N64 game, despite being valid
+    if (is_unused_n64_instruction(id)) {
         return false;
     }
 
@@ -182,14 +160,6 @@ size_t find_code_end(std::span<uint8_t> rom_bytes, size_t rom_addr) {
     return rom_addr;
 }
 
-struct CodeRegion {
-    size_t rom_start;
-    size_t rom_end;
-
-    CodeRegion(size_t new_rom_start, size_t new_rom_end) :
-        rom_start(new_rom_start), rom_end(new_rom_end) {}
-};
-
 // Check if a given instruction word is an unconditional non-linking branch (i.e. `b`, `j`, or `jr`)
 bool is_unconditional_branch(uint32_t instruction_word) {
     rabbitizer::InstructionCpu instr{instruction_word, 0};
@@ -198,7 +168,7 @@ bool is_unconditional_branch(uint32_t instruction_word) {
 }
 
 // Trims zeroes from the start of a code region and "loose" instructions from the end
-void trim_segment(CodeRegion& codeseg, std::span<uint8_t> rom_bytes) {
+void trim_segment(RomRegion& codeseg, std::span<uint8_t> rom_bytes) {
     size_t start = codeseg.rom_start;
     size_t end = codeseg.rom_end;
     
@@ -219,25 +189,35 @@ void trim_segment(CodeRegion& codeseg, std::span<uint8_t> rom_bytes) {
 }
 
 // Find all the regions of code in the given rom given the list of `jr $ra` instructions located in the rom
-std::vector<CodeRegion> find_code_regions(std::span<uint8_t> rom_bytes, std::span<size_t> return_addrs) {
-    std::vector<CodeRegion> ret{};
+std::vector<RomRegion> find_code_regions(std::span<uint8_t> rom_bytes, std::span<size_t> return_addrs) {
+    std::vector<RomRegion> ret{};
 
     auto it = return_addrs.begin();
     while (it != return_addrs.end()) {
         size_t region_start = find_code_start(rom_bytes, *it);
         size_t region_end = find_code_end(rom_bytes, *it);
-        CodeRegion& cur_segment = ret.emplace_back(region_start, region_end);
+        RomRegion& cur_segment = ret.emplace_back(region_start, region_end);
         
         while (it != return_addrs.end() && *it < cur_segment.rom_end) {
             it++;
         }
         
         trim_segment(cur_segment, rom_bytes);
-
-        // If the segment has fewer than the minimum instructions, throw it out.
-        if (cur_segment.rom_end - cur_segment.rom_start < min_region_instructions * instruction_size) {
-            ret.pop_back();
+        
+        // If the current segment is close enough to the previous segment, check if there's valid RSP microcode between the two
+        if (ret.size() > 1 && cur_segment.rom_start - ret[ret.size() - 2].rom_end < microcode_check_threshold) {
+            if (check_range_rsp(ret[ret.size() - 2].rom_end, cur_segment.rom_start, rom_bytes)) {
+                // If there is, merge the two segments
+                size_t new_end = cur_segment.rom_end;
+                ret.pop_back();
+                ret.back().rom_end = new_end;
+            }
         }
+
+        // // If the segment has fewer than the minimum instructions, throw it out.
+        // if (cur_segment.rom_end - cur_segment.rom_start < min_region_instructions * instruction_size) {
+        //     ret.pop_back();
+        // }
     }
 
     return ret;
@@ -256,12 +236,12 @@ int main(int argc, char* argv[]) {
     }
 
     std::vector<uint8_t> rom_bytes = read_rom(rom_path);
-    fmt::print("Rom size: 0x{:08X}\n", rom_bytes.size());
+    // fmt::print("Rom size: 0x{:08X}\n", rom_bytes.size());
 
     std::vector<size_t> return_addrs = find_return_locations(rom_bytes);
-    fmt::print("Found {} returns\n", return_addrs.size());
+    // fmt::print("Found {} returns\n", return_addrs.size());
 
-    std::vector<CodeRegion> code_regions = find_code_regions(rom_bytes, return_addrs);
+    std::vector<RomRegion> code_regions = find_code_regions(rom_bytes, return_addrs);
     fmt::print("Found {} code regions:\n", code_regions.size());
 
     for (const auto& codeseg : code_regions) {
