@@ -47,6 +47,22 @@ bool has_operand_input(const rabbitizer::InstructionCpu& instr, rabbitizer::Oper
     return false;
 }
 
+// Check if an instruction outputs to $zero
+bool has_zero_output(const rabbitizer::InstructionCpu& instr) {
+    RegisterId rd = instr.GetO32_rd();
+    RegisterId rt = instr.GetO32_rt();
+
+    if (instr.modifiesRd() && rd == RegisterId::GPR_O32_zero) {
+        return true;
+    }
+
+    if (instr.modifiesRt() && rt == RegisterId::GPR_O32_zero) {
+        return true;
+    }
+
+    return false;
+}
+
 // Checks if an instruction references an uninitialized register
 bool references_uninitialized(const rabbitizer::InstructionCpu& instr, const GprRegisterStates& gpr_reg_states, const FprRegisterStates& fpr_reg_states) {
     bool ret = false;
@@ -96,6 +112,16 @@ bool is_invalid_start_instruction(const rabbitizer::InstructionCpu& instr, const
     if (id == InstrId::cpu_nop) {
         return true;
     }
+
+    // Check if this is a valid instruction to begin with
+    if (!is_valid(instr)) {
+        return true;
+    }
+    
+    // Code shouldn't output to $zero
+    if (has_zero_output(instr)) {
+        return true;
+    }
     
     // Code shouldn't start with a reference to a register that isn't initialized
     if (references_uninitialized(instr, gpr_reg_states, fpr_reg_states)) {
@@ -104,6 +130,31 @@ bool is_invalid_start_instruction(const rabbitizer::InstructionCpu& instr, const
 
     // Code shouldn't start with an unconditional branch
     if (id == InstrId::cpu_b || id == InstrId::cpu_j) {
+        return true;
+    }
+
+    // Code shouldn't start with a linked jump, as it'd need to save the return address first
+    if (id == InstrId::cpu_jal || id == InstrId::cpu_jalr) {
+        return true;
+    }
+
+    // Code shouldn't jump to $zero
+    if (id == InstrId::cpu_jr && instr.GetO32_rs() == RegisterId::GPR_O32_zero) {
+        return true;
+    }
+
+    // Shifts with $zero as the input and a non-zero shift amount are likely not real code
+    if (id == InstrId::cpu_sll || id == InstrId::cpu_srl || id == InstrId::cpu_sra ||
+        id == InstrId::cpu_dsll || id == InstrId::cpu_dsll32 || id == InstrId::cpu_dsrl ||
+        id == InstrId::cpu_dsrl32 || id == InstrId::cpu_dsra || id == InstrId::cpu_dsra32) {
+        // fmt::print("test {} {} {}\n", (int)id, (int)instr.GetO32_rt(), instr.Get_sa());
+        if (instr.GetO32_rt() == RegisterId::GPR_O32_zero && instr.Get_sa() != 0) {
+            return true;
+        }
+    }
+
+    // Code probably won't start with mthi or mtlo
+    if (id == InstrId::cpu_mthi || id == InstrId::cpu_mtlo) {
         return true;
     }
 

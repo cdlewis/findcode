@@ -80,7 +80,7 @@ bool is_store(InstrId id) {
 }
 
 // Check if a given instruction id is a CPU load
-bool is_load(InstrId id) {
+bool is_gpr_load(InstrId id) {
     return
         id == InstrId::cpu_lb ||
         id == InstrId::cpu_lbu || 
@@ -88,7 +88,11 @@ bool is_load(InstrId id) {
         id == InstrId::cpu_lhu || 
         id == InstrId::cpu_lw ||
         id == InstrId::cpu_lwu || 
-        id == InstrId::cpu_ld ||
+        id == InstrId::cpu_ld;
+}
+
+bool is_fpr_load(InstrId id) {
+    return
         id == InstrId::cpu_lwc1 || 
         id == InstrId::cpu_ldc1;
 }
@@ -100,7 +104,9 @@ bool invalid_cop0_register(int reg) {
 
 bool is_unused_n64_instruction(InstrId id) {
     return
-        id == InstrId::cpu_ll;
+        id == InstrId::cpu_ll ||
+        id == InstrId::cpu_sc ||
+        id == InstrId::cpu_syscall;
 }
 
 // Check if a given instruction is valid via several metrics
@@ -111,8 +117,17 @@ bool is_valid(const rabbitizer::InstructionCpu& instr) {
         return false;
     }
 
+    bool instr_is_store = is_store(id);
+    bool instr_is_gpr_load = is_gpr_load(id);
+    bool instr_is_fpr_load = is_fpr_load(id);
+
     // Check for loads or stores with an offset from $zero
-    if ((is_store(id) || is_load(id)) && instr.GetO32_rs() == RegisterId::GPR_O32_zero) {
+    if ((instr_is_store || instr_is_gpr_load || instr_is_fpr_load) && instr.GetO32_rs() == RegisterId::GPR_O32_zero) {
+        return false;
+    }
+
+    // Check for loads to $zero
+    if (instr_is_gpr_load && instr.GetO32_rt() == RegisterId::GPR_O32_zero) {
         return false;
     }
 
@@ -139,12 +154,22 @@ bool is_valid(const rabbitizer::InstructionCpu& instr) {
     }
 
     // Check for cop2 instructions, which are invalid for the N64's CPU
-    if (id == InstrId::cpu_ldc2 || id == InstrId::cpu_sdc2) {
+    if (id == InstrId::cpu_lwc2 || id == InstrId::cpu_ldc2 || id == InstrId::cpu_swc2 || id == InstrId::cpu_sdc2) {
         return false;
     }
 
     // Check for trap instructions
     if (id >= InstrId::cpu_tge && id <= InstrId::cpu_tltu) {
+        return false;
+    }
+
+    // Check for ctc0 and cfc0, which aren't valid on the N64
+    if (id == InstrId::cpu_ctc0 || id == InstrId::cpu_cfc0) {
+        return false;
+    }
+
+    // Check for instructions that don't exist on the N64's CPU
+    if (id == InstrId::cpu_pref) {
         return false;
     }
 
@@ -272,8 +297,17 @@ int main(int argc, char* argv[]) {
     for (const auto& codeseg : code_regions) {
         size_t start = nearest_multiple_down<16>(codeseg.rom_start);
         size_t end   = nearest_multiple_up<16>(codeseg.rom_end);
-        fmt::print("  0x{:08X} to 0x{:08X} (0x{:06X})\n",
-            start, end, end - start);
+
+        if constexpr (!show_true_ranges) {
+            fmt::print("  0x{:08X} to 0x{:08X} (0x{:06X})\n",
+                start, end, end - start);
+        } else {
+            fmt::print("  0x{:08X} to 0x{:08X} (0x{:06X})\n",
+                codeseg.rom_start, codeseg.rom_end, codeseg.rom_end - codeseg.rom_start);
+            if (codeseg.rom_start != start) {
+                fmt::print("    Warn: code region doesn't start at 16 byte alignment");
+            }
+        }
     }
     
     return EXIT_SUCCESS;

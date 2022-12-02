@@ -16,6 +16,7 @@ struct RomRegion {
 constexpr size_t instruction_size = 4;
 constexpr size_t min_region_instructions = 4;
 constexpr size_t microcode_check_threshold = 1024 * instruction_size;
+constexpr bool show_true_ranges = false;
 
 using RegisterId = rabbitizer::Registers::Cpu::GprO32;
 using FprRegisterId = rabbitizer::Registers::Cpu::Cop1O32;
