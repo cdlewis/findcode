@@ -18,6 +18,7 @@ constexpr size_t min_region_instructions = 4;
 constexpr size_t microcode_check_threshold = 1024 * instruction_size;
 
 using RegisterId = rabbitizer::Registers::Cpu::GprO32;
+using FprRegisterId = rabbitizer::Registers::Cpu::Cop1O32;
 using InstrId = rabbitizer::InstrId::UniqueId;
 
 // Byteswap a 32-bit value
@@ -53,5 +54,8 @@ bool is_valid(const rabbitizer::InstructionCpu& instr);
 
 // Check if a given rom range is valid RSP microcode
 bool check_range_rsp(size_t rom_start, size_t rom_end, std::span<uint8_t> rom_bytes);
+
+// Count the number of instructions at the beginning of a region with uninitialized register references
+size_t count_invalid_start_instructions(const RomRegion& region, std::span<uint8_t> rom_bytes);
 
 #endif

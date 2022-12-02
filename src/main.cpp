@@ -126,6 +126,28 @@ bool is_valid(const rabbitizer::InstructionCpu& instr) {
         return false;
     }
 
+    // Check for cache instructions with invalid parameters
+    if (id == InstrId::cpu_cache) {
+        uint32_t cache_param = instr.Get_op();
+        uint32_t cache_op = cache_param >> 2;
+        uint32_t cache_type = cache_param & 0x3;
+
+        // Only cache operations 0-6 and cache types 0-1 are valid
+        if (cache_op > 6 || cache_type > 1) {
+            return false;
+        }
+    }
+
+    // Check for cop2 instructions, which are invalid for the N64's CPU
+    if (id == InstrId::cpu_ldc2 || id == InstrId::cpu_sdc2) {
+        return false;
+    }
+
+    // Check for trap instructions
+    if (id >= InstrId::cpu_tge && id <= InstrId::cpu_tltu) {
+        return false;
+    }
+
     return true;
 }
 
@@ -171,6 +193,9 @@ bool is_unconditional_branch(uint32_t instruction_word) {
 void trim_segment(RomRegion& codeseg, std::span<uint8_t> rom_bytes) {
     size_t start = codeseg.rom_start;
     size_t end = codeseg.rom_end;
+    size_t invalid_start_count = count_invalid_start_instructions(codeseg, rom_bytes);
+
+    start += invalid_start_count * instruction_size;
     
     // Remove leading nops
     while (read32(rom_bytes, start) == 0 && end > start) {
@@ -245,7 +270,7 @@ int main(int argc, char* argv[]) {
     fmt::print("Found {} code regions:\n", code_regions.size());
 
     for (const auto& codeseg : code_regions) {
-        size_t start = nearest_multiple_up<16>(codeseg.rom_start);
+        size_t start = nearest_multiple_down<16>(codeseg.rom_start);
         size_t end   = nearest_multiple_up<16>(codeseg.rom_end);
         fmt::print("  0x{:08X} to 0x{:08X} (0x{:06X})\n",
             start, end, end - start);
