@@ -5,6 +5,8 @@
 #include <vector>
 #include <span>
 
+#include "rabbitizer.hpp"
+
 struct RomRegion {
     size_t rom_start;
     size_t rom_end;
@@ -49,6 +51,9 @@ constexpr size_t nearest_multiple_down(size_t val) {
 inline uint32_t read32(std::span<uint8_t> bytes, size_t offset) {
     return *reinterpret_cast<uint32_t*>(bytes.data() + offset);
 }
+
+// Find all the regions of code in the given rom
+std::vector<RomRegion> find_code_regions(std::span<uint8_t> rom_bytes);
 
 // // Check if a given CPU instruction is valid
 bool is_valid(const rabbitizer::InstructionCpu& instr);
