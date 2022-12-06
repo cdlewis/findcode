@@ -106,6 +106,8 @@ bool is_unused_n64_instruction(InstrId id) {
     return
         id == InstrId::cpu_ll ||
         id == InstrId::cpu_sc ||
+        id == InstrId::cpu_lld ||
+        id == InstrId::cpu_scd ||
         id == InstrId::cpu_syscall;
 }
 
@@ -126,10 +128,11 @@ bool is_valid(const rabbitizer::InstructionCpu& instr) {
         return false;
     }
 
-    // Check for loads to $zero
-    if (instr_is_gpr_load && instr.GetO32_rt() == RegisterId::GPR_O32_zero) {
-        return false;
-    }
+    // This check is disabled as some compilers can generate load to $zero for a volatile dereference
+    // // Check for loads to $zero
+    // if (instr_is_gpr_load && instr.GetO32_rt() == RegisterId::GPR_O32_zero) {
+    //     return false;
+    // }
 
     // Check for mtc0 or mfc0 with invalid registers
     if ((id == InstrId::cpu_mtc0 || id == InstrId::cpu_mfc0) && invalid_cop0_register((int)instr.GetO32_rd())) {
@@ -238,6 +241,17 @@ void trim_segment(RomRegion& codeseg, std::span<uint8_t> rom_bytes) {
     codeseg.rom_end = end;
 }
 
+// Check if a given rom range is valid CPU instructions
+bool check_range_cpu(size_t rom_start, size_t rom_end, std::span<uint8_t> rom_bytes) {
+    for (size_t offset = rom_start; offset < rom_end; offset += instruction_size) {
+        rabbitizer::InstructionCpu instr{read32(rom_bytes, offset), 0};
+        if (!is_valid(instr)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Find all the regions of code in the given rom given the list of `jr $ra` instructions located in the rom
 std::vector<RomRegion> find_code_regions(std::span<uint8_t> rom_bytes, std::span<size_t> return_addrs) {
     std::vector<RomRegion> ret{};
@@ -256,7 +270,8 @@ std::vector<RomRegion> find_code_regions(std::span<uint8_t> rom_bytes, std::span
         
         // If the current segment is close enough to the previous segment, check if there's valid RSP microcode between the two
         if (ret.size() > 1 && cur_segment.rom_start - ret[ret.size() - 2].rom_end < microcode_check_threshold) {
-            if (check_range_rsp(ret[ret.size() - 2].rom_end, cur_segment.rom_start, rom_bytes)) {
+            if (check_range_rsp(ret[ret.size() - 2].rom_end, cur_segment.rom_start, rom_bytes) ||
+                check_range_cpu(ret[ret.size() - 2].rom_end, cur_segment.rom_start, rom_bytes)) {
                 // If there is, merge the two segments
                 size_t new_end = cur_segment.rom_end;
                 ret.pop_back();

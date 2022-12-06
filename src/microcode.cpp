@@ -40,7 +40,10 @@ bool check_range_rsp(size_t rom_start, size_t rom_end, std::span<uint8_t> rom_by
     // fmt::print("Test: 0x{:08X} - 0x{:08X}\n", rom_start, rom_end);
     for (size_t offset = rom_start; offset < rom_end; offset += instruction_size) {
         rabbitizer::InstructionRsp instr{read32(rom_bytes, offset), 0};
-        if (!is_valid_rsp(rabbitizer::InstructionRsp{read32(rom_bytes, offset), 0})) {
+        if (!is_valid_rsp(instr)) {
+            if (rom_start == 0x00B96390) {
+                fmt::print(stderr, "  Invalid RSP: {}\n", instr.disassemble(0));
+            }
             return false;
         }
     }

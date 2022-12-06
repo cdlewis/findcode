@@ -157,6 +157,16 @@ bool is_invalid_start_instruction(const rabbitizer::InstructionCpu& instr, const
     if (id == InstrId::cpu_mthi || id == InstrId::cpu_mtlo) {
         return true;
     }
+    
+    // Code shouldn't start with branches based on the cop1 condition flag (it won't have been set yet)
+    if (id == InstrId::cpu_bc1t || id == InstrId::cpu_bc1f || id == InstrId::cpu_bc1tl || id == InstrId::cpu_bc1fl) {
+        return true;
+    }
+
+    // Add and sub are good indicators that the bytes aren't actually instructions, since addu and subu would normally be used
+    if (id == InstrId::cpu_add || id == InstrId::cpu_sub) {
+        return true;
+    }
 
     return false;
 }
