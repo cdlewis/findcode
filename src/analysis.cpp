@@ -168,6 +168,11 @@ bool is_invalid_start_instruction(const rabbitizer::InstructionCpu& instr, const
         return true;
     }
 
+    // Code shouldn't start with a store relative to $ra
+    if (instr.hasOperand(rabbitizer::OperandType::cpu_immediate_base) && instr.GetO32_rs() == RegisterId::GPR_O32_ra) {
+        return true;
+    }
+
     return false;
 }
 
