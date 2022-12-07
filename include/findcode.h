@@ -48,20 +48,20 @@ constexpr size_t nearest_multiple_down(size_t val) {
 }
 
 // Reads a 32-bit value from a given uint8_t span at the given offset
-inline uint32_t read32(std::span<uint8_t> bytes, size_t offset) {
-    return *reinterpret_cast<uint32_t*>(bytes.data() + offset);
+inline uint32_t read32(std::span<const uint8_t> bytes, size_t offset) {
+    return *reinterpret_cast<const uint32_t*>(bytes.data() + offset);
 }
 
 // Find all the regions of code in the given rom
-std::vector<RomRegion> find_code_regions(std::span<uint8_t> rom_bytes);
+std::vector<RomRegion> find_code_regions(std::span<const uint8_t> rom_bytes);
 
 // // Check if a given CPU instruction is valid
 bool is_valid(const rabbitizer::InstructionCpu& instr);
 
 // Check if a given rom range is valid RSP microcode
-bool check_range_rsp(size_t rom_start, size_t rom_end, std::span<uint8_t> rom_bytes);
+bool check_range_rsp(size_t rom_start, size_t rom_end, std::span<const uint8_t> rom_bytes);
 
 // Count the number of instructions at the beginning of a region with uninitialized register references
-size_t count_invalid_start_instructions(const RomRegion& region, std::span<uint8_t> rom_bytes);
+size_t count_invalid_start_instructions(const RomRegion& region, std::span<const uint8_t> rom_bytes);
 
 #endif

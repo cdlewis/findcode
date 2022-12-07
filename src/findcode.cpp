@@ -10,12 +10,12 @@
 constexpr uint32_t jr_ra = 0x03E00008;
 
 // Search a span for any instances of the instruction `jr $ra`
-std::vector<size_t> find_return_locations(std::span<uint8_t> rom_bytes) {
+std::vector<size_t> find_return_locations(std::span<const uint8_t> rom_bytes) {
     std::vector<size_t> ret{};
     ret.reserve(1024);
 
     for (size_t rom_addr = 0x1000; rom_addr < rom_bytes.size() / instruction_size; rom_addr += instruction_size) {
-        uint32_t rom_word = *reinterpret_cast<uint32_t*>(rom_bytes.data() + rom_addr);
+        uint32_t rom_word = *reinterpret_cast<const uint32_t*>(rom_bytes.data() + rom_addr);
 
         if (rom_word == jr_ra) {
             ret.push_back(rom_addr);
@@ -137,7 +137,7 @@ bool is_valid(const rabbitizer::InstructionCpu& instr) {
 }
 
 // Searches backwards from the given rom address until it hits an invalid instruction
-size_t find_code_start(std::span<uint8_t> rom_bytes, size_t rom_addr) {
+size_t find_code_start(std::span<const uint8_t> rom_bytes, size_t rom_addr) {
     while (rom_addr > 0x1000) {
         size_t cur_rom_addr = rom_addr - instruction_size;
         rabbitizer::InstructionCpu cur_instr{read32(rom_bytes, cur_rom_addr), 0};
@@ -153,7 +153,7 @@ size_t find_code_start(std::span<uint8_t> rom_bytes, size_t rom_addr) {
 }
 
 // Searches forwards from the given rom address until it hits an invalid instruction
-size_t find_code_end(std::span<uint8_t> rom_bytes, size_t rom_addr) {
+size_t find_code_end(std::span<const uint8_t> rom_bytes, size_t rom_addr) {
     while (rom_addr > 0) {
         rabbitizer::InstructionCpu cur_instr{read32(rom_bytes, rom_addr), 0};
 
@@ -175,7 +175,7 @@ bool is_unconditional_branch(uint32_t instruction_word) {
 }
 
 // Trims zeroes from the start of a code region and "loose" instructions from the end
-void trim_segment(RomRegion& codeseg, std::span<uint8_t> rom_bytes) {
+void trim_segment(RomRegion& codeseg, std::span<const uint8_t> rom_bytes) {
     size_t start = codeseg.rom_start;
     size_t end = codeseg.rom_end;
     size_t invalid_start_count = count_invalid_start_instructions(codeseg, rom_bytes);
@@ -199,7 +199,7 @@ void trim_segment(RomRegion& codeseg, std::span<uint8_t> rom_bytes) {
 }
 
 // Check if a given rom range is valid CPU instructions
-bool check_range_cpu(size_t rom_start, size_t rom_end, std::span<uint8_t> rom_bytes) {
+bool check_range_cpu(size_t rom_start, size_t rom_end, std::span<const uint8_t> rom_bytes) {
     for (size_t offset = rom_start; offset < rom_end; offset += instruction_size) {
         rabbitizer::InstructionCpu instr{read32(rom_bytes, offset), 0};
         if (!is_valid(instr)) {
@@ -210,7 +210,7 @@ bool check_range_cpu(size_t rom_start, size_t rom_end, std::span<uint8_t> rom_by
 }
 
 // Find all the regions of code in the given rom
-std::vector<RomRegion> find_code_regions(std::span<uint8_t> rom_bytes) {
+std::vector<RomRegion> find_code_regions(std::span<const uint8_t> rom_bytes) {
     std::vector<RomRegion> ret{};
     
     std::vector<size_t> return_addrs = find_return_locations(rom_bytes);

@@ -172,7 +172,7 @@ bool is_invalid_start_instruction(const rabbitizer::InstructionCpu& instr, const
 }
 
 // Count the number of instructions at the beginning of a region with uninitialized register references
-size_t count_invalid_start_instructions(const RomRegion& region, std::span<uint8_t> rom_bytes) {
+size_t count_invalid_start_instructions(const RomRegion& region, std::span<const uint8_t> rom_bytes) {
     GprRegisterStates gpr_reg_states{};
     FprRegisterStates fpr_reg_states{};
 

@@ -36,7 +36,7 @@ bool is_valid_rsp(const rabbitizer::InstructionRsp& instr) {
 }
 
 // Check if a given rom range is valid RSP microcode
-bool check_range_rsp(size_t rom_start, size_t rom_end, std::span<uint8_t> rom_bytes) {
+bool check_range_rsp(size_t rom_start, size_t rom_end, std::span<const uint8_t> rom_bytes) {
     // fmt::print("Test: 0x{:08X} - 0x{:08X}\n", rom_start, rom_end);
     for (size_t offset = rom_start; offset < rom_end; offset += instruction_size) {
         rabbitizer::InstructionRsp instr{read32(rom_bytes, offset), 0};
