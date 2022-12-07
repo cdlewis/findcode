@@ -229,8 +229,17 @@ std::vector<RomRegion> find_code_regions(std::span<const uint8_t> rom_bytes) {
         
         // If the current segment is close enough to the previous segment, check if there's valid RSP microcode between the two
         if (ret.size() > 1 && cur_segment.rom_start - ret[ret.size() - 2].rom_end < microcode_check_threshold) {
-            if (check_range_rsp(ret[ret.size() - 2].rom_end, cur_segment.rom_start, rom_bytes) ||
-                check_range_cpu(ret[ret.size() - 2].rom_end, cur_segment.rom_start, rom_bytes)) {
+            // Check if there's a range of valid CPU instructions between these two segments
+            bool valid_range = check_range_cpu(ret[ret.size() - 2].rom_end, cur_segment.rom_start, rom_bytes);
+            // If there isn't check for RSP instructions
+            if (!valid_range) {
+                valid_range = check_range_rsp(ret[ret.size() - 2].rom_end, cur_segment.rom_start, rom_bytes);
+                // If RSP instructions were found, mark the first segment as having RSP instructions
+                if (valid_range) {
+                    ret[ret.size() - 2].has_rsp = true;
+                }
+            }
+            if (valid_range) {
                 // If there is, merge the two segments
                 size_t new_end = cur_segment.rom_end;
                 ret.pop_back();

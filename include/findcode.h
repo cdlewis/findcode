@@ -10,9 +10,10 @@
 struct RomRegion {
     size_t rom_start;
     size_t rom_end;
+    bool has_rsp;
 
     RomRegion(size_t new_rom_start, size_t new_rom_end) :
-        rom_start(new_rom_start), rom_end(new_rom_end) {}
+        rom_start(new_rom_start), rom_end(new_rom_end), has_rsp(false) {}
 };
 
 constexpr size_t instruction_size = 4;
