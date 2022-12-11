@@ -59,6 +59,9 @@ std::vector<RomRegion> find_code_regions(std::span<const uint8_t> rom_bytes);
 // // Check if a given CPU instruction is valid
 bool is_valid(const rabbitizer::InstructionCpu& instr);
 
+// Check if a given RSP instruction is valid via several metrics
+bool is_valid_rsp(const rabbitizer::InstructionRsp& instr);
+
 // Check if a given rom range is valid RSP microcode
 bool check_range_rsp(size_t rom_start, size_t rom_end, std::span<const uint8_t> rom_bytes);
 

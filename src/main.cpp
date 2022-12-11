@@ -68,11 +68,11 @@ int main(int argc, char* argv[]) {
         size_t end   = nearest_multiple_up<16>(codeseg.rom_end);
 
         if constexpr (!show_true_ranges) {
-            fmt::print("  0x{:08X} to 0x{:08X} (0x{:06X})\n",
-                start, end, end - start);
+            fmt::print("  0x{:08X} to 0x{:08X} (0x{:06X}) rsp: {}\n",
+                start, end, end - start, codeseg.has_rsp);
         } else {
-            fmt::print("  0x{:08X} to 0x{:08X} (0x{:06X})\n",
-                codeseg.rom_start, codeseg.rom_end, codeseg.rom_end - codeseg.rom_start);
+            fmt::print("  0x{:08X} to 0x{:08X} (0x{:06X}) rsp: {}\n",
+                codeseg.rom_start, codeseg.rom_end, codeseg.rom_end - codeseg.rom_start, codeseg.has_rsp);
             if (codeseg.rom_start != start) {
                 fmt::print("    Warn: code region doesn't start at 16 byte alignment");
             }

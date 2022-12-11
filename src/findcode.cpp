@@ -170,12 +170,13 @@ size_t find_code_end(std::span<const uint8_t> rom_bytes, size_t rom_addr) {
 // Check if a given instruction word is an unconditional non-linking branch (i.e. `b`, `j`, or `jr`)
 bool is_unconditional_branch(uint32_t instruction_word) {
     rabbitizer::InstructionCpu instr{instruction_word, 0};
+    InstrId id = instr.getUniqueId();
 
-    return instr.isUnconditionalBranch() || instr.getUniqueId() == rabbitizer::InstrId::UniqueId::cpu_jr;
+    return id == InstrId::cpu_b || id == InstrId::cpu_j || id == InstrId::cpu_jr;
 }
 
 // Trims zeroes from the start of a code region and "loose" instructions from the end
-void trim_segment(RomRegion& codeseg, std::span<const uint8_t> rom_bytes) {
+void trim_region(RomRegion& codeseg, std::span<const uint8_t> rom_bytes) {
     size_t start = codeseg.rom_start;
     size_t end = codeseg.rom_end;
     size_t invalid_start_count = count_invalid_start_instructions(codeseg, rom_bytes);
@@ -219,38 +220,50 @@ std::vector<RomRegion> find_code_regions(std::span<const uint8_t> rom_bytes) {
     while (it != return_addrs.end()) {
         size_t region_start = find_code_start(rom_bytes, *it);
         size_t region_end = find_code_end(rom_bytes, *it);
-        RomRegion& cur_segment = ret.emplace_back(region_start, region_end);
+        ret.emplace_back(region_start, region_end);
         
-        while (it != return_addrs.end() && *it < cur_segment.rom_end) {
+        while (it != return_addrs.end() && *it < ret.back().rom_end) {
             it++;
         }
         
-        trim_segment(cur_segment, rom_bytes);
+        trim_region(ret.back(), rom_bytes);
         
-        // If the current segment is close enough to the previous segment, check if there's valid RSP microcode between the two
-        if (ret.size() > 1 && cur_segment.rom_start - ret[ret.size() - 2].rom_end < microcode_check_threshold) {
-            // Check if there's a range of valid CPU instructions between these two segments
-            bool valid_range = check_range_cpu(ret[ret.size() - 2].rom_end, cur_segment.rom_start, rom_bytes);
+        // If the current region is close enough to the previous region, check if there's valid RSP microcode between the two
+        if (ret.size() > 1 && ret.back().rom_start - ret[ret.size() - 2].rom_end < microcode_check_threshold) {
+            // Check if there's a range of valid CPU instructions between these two regions
+            bool valid_range = check_range_cpu(ret[ret.size() - 2].rom_end, ret.back().rom_start, rom_bytes);
             // If there isn't check for RSP instructions
             if (!valid_range) {
-                valid_range = check_range_rsp(ret[ret.size() - 2].rom_end, cur_segment.rom_start, rom_bytes);
-                // If RSP instructions were found, mark the first segment as having RSP instructions
+                valid_range = check_range_rsp(ret[ret.size() - 2].rom_end, ret.back().rom_start, rom_bytes);
+                // If RSP instructions were found, mark the first region as having RSP instructions
                 if (valid_range) {
                     ret[ret.size() - 2].has_rsp = true;
                 }
             }
             if (valid_range) {
-                // If there is, merge the two segments
-                size_t new_end = cur_segment.rom_end;
+                // If there is, merge the two regions
+                size_t new_end = ret.back().rom_end;
                 ret.pop_back();
                 ret.back().rom_end = new_end;
             }
         }
 
-        // // If the segment has fewer than the minimum instructions, throw it out.
-        // if (cur_segment.rom_end - cur_segment.rom_start < min_region_instructions * instruction_size) {
-        //     ret.pop_back();
-        // }
+        // If the region has microcode, search forward until valid RSP instructions end
+        if (ret.back().has_rsp) {
+            // Keep advancing the region's end until either the stop point is reached or something
+            // that isn't a valid RSP instruction is seen
+            while (ret.back().rom_end < rom_bytes.size() && is_valid_rsp({read32(rom_bytes, ret.back().rom_end), 0})) {
+                ret.back().rom_end += instruction_size;
+            }
+
+            // Trim the region again to get rid of any junk that may have been found after its end
+            trim_region(ret.back(), rom_bytes);
+
+            // Skip any return addresses that are now part of the region
+            while (it != return_addrs.end() && *it < ret.back().rom_end) {
+                it++;
+            }
+        }
     }
 
     return ret;
