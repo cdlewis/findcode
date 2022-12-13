@@ -28,7 +28,7 @@ bool is_valid_rsp(const rabbitizer::InstructionRsp& instr) {
     }
 
     // Check for nonexistent RSP instructions
-    if (id == InstrId::rsp_lwc1 || id == InstrId::rsp_swc1) {
+    if (id == InstrId::rsp_lwc1 || id == InstrId::rsp_swc1 || id == InstrId::cpu_ctc0 || id == InstrId::cpu_cfc0) {
         return false;
     }
 
@@ -37,13 +37,25 @@ bool is_valid_rsp(const rabbitizer::InstructionRsp& instr) {
 
 // Check if a given rom range is valid RSP microcode
 bool check_range_rsp(size_t rom_start, size_t rom_end, std::span<const uint8_t> rom_bytes) {
-    // fmt::print("Test: 0x{:08X} - 0x{:08X}\n", rom_start, rom_end);
+    uint32_t prev_word = 0xFFFFFFFF;
+    int identical_count = 0;
     for (size_t offset = rom_start; offset < rom_end; offset += instruction_size) {
-        rabbitizer::InstructionRsp instr{read32(rom_bytes, offset), 0};
+        uint32_t cur_word = read32(rom_bytes, offset);
+        // Check if the previous instruction is identical to this one
+        if (cur_word == prev_word) {
+            // If it is, increase the consecutive identical instruction count
+            identical_count++;
+        } else {
+            // Otherwise, reset the count and update the previous instruction for tracking
+            prev_word = cur_word;
+            identical_count = 0;
+        }
+        rabbitizer::InstructionRsp instr{cur_word, 0};
+        // See `check_range_cpu` for an explanation of this logic.
+        if (identical_count >= 3 && (instr.doesLoad() || instr.doesStore())) {
+            return false;
+        }
         if (!is_valid_rsp(instr)) {
-            if (rom_start == 0x00B96390) {
-                fmt::print(stderr, "  Invalid RSP: {}\n", instr.disassemble(0));
-            }
             return false;
         }
     }

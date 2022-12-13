@@ -25,35 +25,6 @@ std::vector<size_t> find_return_locations(std::span<const uint8_t> rom_bytes) {
     return ret;
 }
 
-// Check if a given instruction id is a CPU store
-bool is_store(InstrId id) {
-    return
-        id == InstrId::cpu_sb ||
-        id == InstrId::cpu_sh ||
-        id == InstrId::cpu_sw ||
-        id == InstrId::cpu_sd ||
-        id == InstrId::cpu_swc1 || 
-        id == InstrId::cpu_sdc1;
-}
-
-// Check if a given instruction id is a CPU load
-bool is_gpr_load(InstrId id) {
-    return
-        id == InstrId::cpu_lb ||
-        id == InstrId::cpu_lbu || 
-        id == InstrId::cpu_lh ||
-        id == InstrId::cpu_lhu || 
-        id == InstrId::cpu_lw ||
-        id == InstrId::cpu_lwu || 
-        id == InstrId::cpu_ld;
-}
-
-bool is_fpr_load(InstrId id) {
-    return
-        id == InstrId::cpu_lwc1 || 
-        id == InstrId::cpu_ldc1;
-}
-
 // Check if the provided cop0 register index is valid
 bool invalid_cop0_register(int reg) {
     return reg == 7 || (reg >= 21 && reg <= 25) || reg == 31;
@@ -76,9 +47,9 @@ bool is_valid(const rabbitizer::InstructionCpu& instr) {
         return false;
     }
 
-    bool instr_is_store = is_store(id);
-    bool instr_is_gpr_load = is_gpr_load(id);
-    bool instr_is_fpr_load = is_fpr_load(id);
+    bool instr_is_store = instr.doesStore();
+    bool instr_is_gpr_load = instr.doesLoad() && !instr.isFloat();
+    bool instr_is_fpr_load = instr.doesLoad() && instr.isFloat();
 
     // Check for loads or stores with an offset from $zero
     if ((instr_is_store || instr_is_gpr_load || instr_is_fpr_load) && instr.GetO32_rs() == RegisterId::GPR_O32_zero) {
@@ -201,8 +172,27 @@ void trim_region(RomRegion& codeseg, std::span<const uint8_t> rom_bytes) {
 
 // Check if a given rom range is valid CPU instructions
 bool check_range_cpu(size_t rom_start, size_t rom_end, std::span<const uint8_t> rom_bytes) {
+    uint32_t prev_word = 0xFFFFFFFF;
+    int identical_count = 0;
     for (size_t offset = rom_start; offset < rom_end; offset += instruction_size) {
-        rabbitizer::InstructionCpu instr{read32(rom_bytes, offset), 0};
+        uint32_t cur_word = read32(rom_bytes, offset);
+        // Check if the previous instruction is identical to this one
+        if (cur_word == prev_word) {
+            // If it is, increase the consecutive identical instruction count
+            identical_count++;
+        } else {
+            // Otherwise, reset the count and update the previous instruction for tracking
+            prev_word = cur_word;
+            identical_count = 0;
+        }
+        rabbitizer::InstructionCpu instr{cur_word, 0};
+        // If there are 3 identical loads or stores in a row, it's not likely to be real code
+        // Use 3 as the count because 2 could be plausible if it's a duplicated instruction by the compiler.
+        // Only check for loads and stores because arithmetic could be duplicated to avoid more expensive operations,
+        // e.g. x + x + x instead of 3 * x. 
+        if (identical_count >= 3 && (instr.doesLoad() || instr.doesStore())) {
+            return false;
+        }
         if (!is_valid(instr)) {
             return false;
         }

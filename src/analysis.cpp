@@ -163,8 +163,8 @@ bool is_invalid_start_instruction(const rabbitizer::InstructionCpu& instr, const
         return true;
     }
 
-    // Add and sub are good indicators that the bytes aren't actually instructions, since addu and subu would normally be used
-    if (id == InstrId::cpu_add || id == InstrId::cpu_sub) {
+    // add/sub and addi are good indicators that the bytes aren't actually instructions, since addu/subu and addiu would normally be used
+    if (id == InstrId::cpu_add || id == InstrId::cpu_sub || id == InstrId::cpu_addi) {
         return true;
     }
 
