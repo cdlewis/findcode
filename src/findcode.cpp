@@ -14,11 +14,19 @@ std::vector<size_t> find_return_locations(std::span<const uint8_t> rom_bytes) {
     std::vector<size_t> ret{};
     ret.reserve(1024);
 
-    for (size_t rom_addr = 0x1000; rom_addr < rom_bytes.size() / instruction_size; rom_addr += instruction_size) {
+    for (size_t rom_addr = 0x1000; rom_addr < rom_bytes.size(); rom_addr += instruction_size) {
         uint32_t rom_word = *reinterpret_cast<const uint32_t*>(rom_bytes.data() + rom_addr);
 
         if (rom_word == jr_ra) {
-            ret.push_back(rom_addr);
+            // Found a jr $ra, make sure the delay slot is also a valid instruction and if so mark this as a code region
+            uint32_t next_word = *reinterpret_cast<const uint32_t*>(rom_bytes.data() + rom_addr + instruction_size);
+
+            // This may be microcode, so check instruction validity for both CPU and RSP
+            rabbitizer::InstructionCpu next_instr_cpu{next_word, 0};
+            rabbitizer::InstructionRsp next_instr_rsp{next_word, 0};
+            if (is_valid(next_instr_cpu) || is_valid_rsp(next_instr_rsp)) {
+                ret.push_back(rom_addr);
+            }
         }
     }
 
@@ -62,6 +70,14 @@ bool is_valid(const rabbitizer::InstructionCpu& instr) {
     //     return false;
     // }
 
+    // Check for arithmetic that outputs to $zero
+    if (instr.modifiesRd() && instr.GetO32_rd() == RegisterId::GPR_O32_zero) {
+        return false;
+    }
+    if (instr.modifiesRt() && instr.GetO32_rt() == RegisterId::GPR_O32_zero) {
+        return false;
+    }
+
     // Check for mtc0 or mfc0 with invalid registers
     if ((id == InstrId::cpu_mtc0 || id == InstrId::cpu_mfc0) && invalid_cop0_register((int)instr.GetO32_rd())) {
         return false;
@@ -90,7 +106,7 @@ bool is_valid(const rabbitizer::InstructionCpu& instr) {
     }
 
     // Check for trap instructions
-    if (id >= InstrId::cpu_tge && id <= InstrId::cpu_tltu) {
+    if (instr.isTrap()) {
         return false;
     }
 

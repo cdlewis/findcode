@@ -27,17 +27,21 @@ std::vector<uint8_t> read_rom(const char* path) {
 
     // Check rom endianness
     uint32_t first_word = *reinterpret_cast<uint32_t*>(ret.data());
+    bool host_little_endian = std::endian::native == std::endian::little;
+
     if (first_word == 0x40123780) {
-        fmt::print("Detected big endian rom\n");
-        // Byteswap rom to little endian
-        for (size_t i = 0; i < ret.size() / instruction_size; i += instruction_size) {
+        // rom is opposite of host endianness
+        fmt::print("Detected {} endian rom\n", host_little_endian ? "big" : "little");
+        // Byteswap rom to host order
+        for (size_t i = 0; i < ret.size(); i += instruction_size) {
             *reinterpret_cast<uint32_t*>(ret.data() + i) = byteswap(read32(ret, i));
         }
-    } else if (first_word == 0x12408037) {
+    } else if (first_word == 0x12408037 || first_word == 0x37804012) {
         fmt::print(stderr, "v64 (byteswapped) roms not supported\n");
         exit(EXIT_FAILURE);
     } else if (first_word == 0x80371240) {
-        fmt::print("Detected little endian rom\n");
+        // rom is already in host endianness
+        fmt::print("Detected {} endian rom\n", host_little_endian ? "little" : "big");
     } else {
         fmt::print(stderr, "File is not an N64 game: {}\n", path);
         exit(EXIT_FAILURE);

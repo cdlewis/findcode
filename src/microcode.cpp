@@ -21,6 +21,14 @@ bool is_valid_rsp(const rabbitizer::InstructionRsp& instr) {
         // Make sure this isn't a special jr with 
         return false;
     }
+    
+    // Check for arithmetic that outputs to $zero
+    if (instr.modifiesRd() && instr.GetO32_rd() == RegisterId::GPR_O32_zero) {
+        return false;
+    }
+    if (instr.modifiesRt() && instr.GetO32_rt() == RegisterId::GPR_O32_zero) {
+        return false;
+    }
 
     // Check for mtc0 or mfc0 with invalid registers
     if ((id == InstrId::rsp_mtc0 || id == InstrId::rsp_mfc0) && invalid_rsp_cop0_register((int)instr.GetO32_rd())) {
@@ -28,7 +36,7 @@ bool is_valid_rsp(const rabbitizer::InstructionRsp& instr) {
     }
 
     // Check for nonexistent RSP instructions
-    if (id == InstrId::rsp_lwc1 || id == InstrId::rsp_swc1 || id == InstrId::cpu_ctc0 || id == InstrId::cpu_cfc0) {
+    if (id == InstrId::rsp_lwc1 || id == InstrId::rsp_swc1 || id == InstrId::cpu_ctc0 || id == InstrId::cpu_cfc0 || id == InstrId::rsp_cache) {
         return false;
     }
 
