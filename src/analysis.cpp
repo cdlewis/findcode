@@ -49,18 +49,7 @@ bool has_operand_input(const rabbitizer::InstructionCpu& instr, rabbitizer::Oper
 
 // Check if an instruction outputs to $zero
 bool has_zero_output(const rabbitizer::InstructionCpu& instr) {
-    RegisterId rd = instr.GetO32_rd();
-    RegisterId rt = instr.GetO32_rt();
-
-    if (instr.modifiesRd() && rd == RegisterId::GPR_O32_zero) {
-        return true;
-    }
-
-    if (instr.modifiesRt() && rt == RegisterId::GPR_O32_zero) {
-        return true;
-    }
-
-    return false;
+    return static_cast<RegisterId>(instr.getDestinationGpr()) == RegisterId::GPR_O32_zero;
 }
 
 // Checks if an instruction references an uninitialized register

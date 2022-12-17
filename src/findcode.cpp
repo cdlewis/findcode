@@ -71,10 +71,7 @@ bool is_valid(const rabbitizer::InstructionCpu& instr) {
     // }
 
     // Check for arithmetic that outputs to $zero
-    if (instr.modifiesRd() && instr.GetO32_rd() == RegisterId::GPR_O32_zero) {
-        return false;
-    }
-    if (instr.modifiesRt() && instr.GetO32_rt() == RegisterId::GPR_O32_zero) {
+    if (has_zero_output(instr) && !instr_is_gpr_load) {
         return false;
     }
 

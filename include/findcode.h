@@ -68,4 +68,7 @@ bool check_range_rsp(size_t rom_start, size_t rom_end, std::span<const uint8_t> 
 // Count the number of instructions at the beginning of a region with uninitialized register references
 size_t count_invalid_start_instructions(const RomRegion& region, std::span<const uint8_t> rom_bytes);
 
+// Check if a given instruction outputs to $zero
+bool has_zero_output(const rabbitizer::InstructionCpu& instr);
+
 #endif

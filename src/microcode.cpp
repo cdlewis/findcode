@@ -18,10 +18,9 @@ bool is_valid_rsp(const rabbitizer::InstructionRsp& instr) {
     
     // Check for instructions with invalid bits
     if (!instr.isValid()) {
-        // Make sure this isn't a special jr with 
         return false;
     }
-    
+
     // Check for arithmetic that outputs to $zero
     if (instr.modifiesRd() && instr.GetO32_rd() == RegisterId::GPR_O32_zero) {
         return false;
