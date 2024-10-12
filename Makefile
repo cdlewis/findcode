@@ -109,7 +109,7 @@ CXXFLAGS   := -std=c++20 -fno-rtti -fdata-sections -ffunction-sections
 CPPFLAGS   := -I include $(LIBS_INC_FLAGS) -DAPP_NAME=\"$(TARGET)\"
 WARNFLAGS  := -Wall -Wextra -Wpedantic -Wdouble-promotion -Wfloat-conversion
 ASFLAGS    := 
-LDFLAGS    := -Wl,-gc-sections $(LIBS_LD_FLAGS)
+LDFLAGS    := -Wl,-dead_strip $(LIBS_LD_FLAGS)
 
 ifneq ($(DEBUG),0)
 CPPFLAGS   += -DDEBUG_MODE
@@ -128,7 +128,7 @@ all: $(APP)
 # Make directories
 $(BUILD_ROOT) $(BUILD_DIRS) :
 	@$(PRINT)$(GREEN)Creating directory: $(ENDGREEN)$(BLUE)$@$(ENDBLUE)$(ENDLINE)
-	@$(MKDIR) $@ $(MKDIR_OPTS)
+	@$(MKDIR) $(MKDIR_OPTS) $@
 
 # .cpp -> .o
 $(BUILD_ROOT)/%.o : %.cpp | $(BUILD_DIRS)
