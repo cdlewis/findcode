@@ -168,7 +168,7 @@ $(APP) : $(OBJS)
 
 clean:
 	@$(PRINT)$(YELLOW)Cleaning build$(ENDYELLOW)$(ENDLINE)
-	@$(RMDIR) $(BUILD_ROOT) $(RMDIR_OPTS)
+	@$(RMDIR) $(RMDIR_OPTS) $(BUILD_ROOT)
 	@$(RM) -f $(APP)
 
 .PHONY: all clean load
